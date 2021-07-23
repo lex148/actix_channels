@@ -7,7 +7,7 @@ use actix_rt::spawn;
 use actix_web_actors::ws;
 use async_trait::async_trait;
 use bytes::Bytes;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -51,7 +51,7 @@ pub struct ChannelSession {
     channel: String,
     hb: Instant,
     relay_addr: Addr<ChannelRelay>,
-    hooks: Arc<Mutex<Box<dyn SessionHook>>>,
+    hooks: Arc<Box<dyn SessionHook>>,
 }
 
 impl ChannelSession {
@@ -62,7 +62,7 @@ impl ChannelSession {
             hb: Instant::now(),
             channel: channel.to_owned(),
             relay_addr: relay,
-            hooks: Arc::new(Mutex::new(hooks)),
+            hooks: Arc::new(hooks),
         }
     }
 
@@ -152,7 +152,7 @@ impl Handler<channel::BroadcastText> for ChannelSession {
             return;
         }
         let hooks = self.hooks.clone();
-        let hooks = hooks.lock().unwrap();
+        //let hooks = hooks.lock().unwrap();
         if let Ok(text) = hooks.channel_to_client_text(msg.2) {
             ctx.text(text);
         }
@@ -168,7 +168,7 @@ impl Handler<channel::BroadcastBytes> for ChannelSession {
             return;
         }
         let hooks = self.hooks.clone();
-        let hooks = hooks.lock().unwrap();
+        //let hooks = hooks.lock().unwrap();
         if let Ok(raw) = hooks.channel_to_client_binary(msg.2) {
             let bytes: &[u8] = &raw;
             let bytes = Bytes::copy_from_slice(bytes);
@@ -198,14 +198,14 @@ impl Handler<AsyncDone> for ChannelSession {
 //relay the output accordingly
 async fn handle_client_text(
     client_text: String,
-    hooks: Arc<Mutex<Box<dyn SessionHook>>>,
+    hooks: Arc<Box<dyn SessionHook>>,
     channel_id: crate::ChannelId,
     self_id: crate::SessionId,
     relay_addr: Addr<ChannelRelay>,
     self_addr: Addr<ChannelSession>,
 ) {
     let result = {
-        let hooks = hooks.lock().unwrap();
+        let hooks = hooks.clone();
         hooks.client_to_channel_text(client_text).await
     };
     match result {
@@ -221,14 +221,14 @@ async fn handle_client_text(
 //relay the output accordingly
 async fn handle_client_binary(
     client_bin: bytes::Bytes,
-    hooks: Arc<Mutex<Box<dyn SessionHook>>>,
+    hooks: Arc<Box<dyn SessionHook>>,
     channel_id: crate::ChannelId,
     self_id: crate::SessionId,
     relay_addr: Addr<ChannelRelay>,
     self_addr: Addr<ChannelSession>,
 ) {
     let result = {
-        let hooks = hooks.lock().unwrap();
+        let hooks = hooks.clone();
         hooks.client_to_channel_binary(client_bin).await
     };
     match result {
@@ -257,14 +257,14 @@ async fn handle_error(err: ChannelError, self_addr: Addr<ChannelSession>) {
 
 // Handle the on connect hook
 async fn handle_client_connect(
-    hooks: Arc<Mutex<Box<dyn SessionHook>>>,
+    hooks: Arc<Box<dyn SessionHook>>,
     channel_id: crate::ChannelId,
     self_id: crate::SessionId,
     relay_addr: Addr<ChannelRelay>,
     self_addr: Addr<ChannelSession>,
 ) {
     let result = {
-        let hooks = hooks.lock().unwrap();
+        let hooks = hooks.clone();
         hooks.on_connect_broadcast().await
     };
     // Handle any error from the hooks if there are any
