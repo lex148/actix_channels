@@ -6,6 +6,8 @@ use std::sync::Arc;
 use crate::ChannelId;
 use crate::SessionId;
 
+use crate::Dest;
+
 pub struct ChannelRelay {
     rng: ThreadRng,
     channels: HashMap<String, ChannelId>,
@@ -124,12 +126,22 @@ impl Handler<UnsubscribeAll> for ChannelRelay {
 // server sends this messages to session
 #[derive(Message, Clone)]
 #[rtype(result = "()")]
-pub struct BroadcastText(pub ChannelId, pub crate::SessionId, pub Arc<String>);
+pub struct BroadcastText(
+    pub ChannelId,
+    pub crate::SessionId,
+    pub Arc<String>,
+    pub Dest,
+);
 
 // server sends this messages to session
 #[derive(Message, Clone)]
 #[rtype(result = "()")]
-pub struct BroadcastBytes(pub ChannelId, pub crate::SessionId, pub Arc<bytes::Bytes>);
+pub struct BroadcastBytes(
+    pub ChannelId,
+    pub crate::SessionId,
+    pub Arc<bytes::Bytes>,
+    pub Dest,
+);
 
 // New session is created
 #[derive(Message)]

@@ -13,23 +13,30 @@ use std::time::{Duration, Instant};
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Dest {
+    Everyone,
+    Sender,
+    Others,
+}
+
 #[async_trait]
 pub trait SessionHook: Sync {
     async fn on_connect_broadcast(
         &self,
-    ) -> Result<(Option<String>, Option<bytes::Bytes>), ChannelError> {
-        Ok((None, None))
+    ) -> Result<(Option<String>, Option<bytes::Bytes>, Dest), ChannelError> {
+        Ok((None, None, Dest::Everyone))
     }
 
-    async fn client_to_channel_text(&self, text: String) -> Result<String, ChannelError> {
-        Ok(text)
+    async fn client_to_channel_text(&self, text: String) -> Result<(String, Dest), ChannelError> {
+        Ok((text, Dest::Others))
     }
 
     async fn client_to_channel_binary(
         &self,
         bytes: bytes::Bytes,
-    ) -> Result<bytes::Bytes, ChannelError> {
-        Ok(bytes)
+    ) -> Result<(bytes::Bytes, Dest), ChannelError> {
+        Ok((bytes, Dest::Others))
     }
 
     fn channel_to_client_text(&self, text: Arc<String>) -> Result<String, ChannelError> {
@@ -98,7 +105,7 @@ impl ChannelSession {
                         // Handle the on connect hook
                         let hooks = act.hooks.clone();
                         let channel_id = act.channel_id;
-                        let self_id = 1; //message from server NOT user
+                        let self_id = act.id;
                         let addr = act.relay_addr.clone();
                         let self_addr = ctx.address();
                         spawn(async move {
@@ -147,13 +154,23 @@ impl Actor for ChannelSession {
 impl Handler<channel::BroadcastText> for ChannelSession {
     type Result = ();
     fn handle(&mut self, msg: channel::BroadcastText, ctx: &mut Self::Context) {
-        if msg.1 == self.id {
+        let from_session_id = msg.1;
+        let payload = msg.2;
+        let dest = msg.3;
+
+        if dest == Dest::Others && from_session_id == self.id {
             //don't repeat the msg back to yourself
             return;
         }
+
+        if dest == Dest::Sender && from_session_id != self.id {
+            //don't repeat the msg to others
+            return;
+        }
+
+        //write the payload to the channel
         let hooks = self.hooks.clone();
-        //let hooks = hooks.lock().unwrap();
-        if let Ok(text) = hooks.channel_to_client_text(msg.2) {
+        if let Ok(text) = hooks.channel_to_client_text(payload) {
             ctx.text(text);
         }
     }
@@ -163,13 +180,22 @@ impl Handler<channel::BroadcastText> for ChannelSession {
 impl Handler<channel::BroadcastBytes> for ChannelSession {
     type Result = ();
     fn handle(&mut self, msg: channel::BroadcastBytes, ctx: &mut Self::Context) {
-        if msg.1 == self.id {
+        let from_session_id = msg.1;
+        let payload = msg.2;
+        let dest = msg.3;
+
+        if dest == Dest::Others && from_session_id == self.id {
             //don't repeat the msg back to yourself
             return;
         }
+
+        if dest == Dest::Sender && from_session_id != self.id {
+            //don't repeat the msg to others
+            return;
+        }
+
         let hooks = self.hooks.clone();
-        //let hooks = hooks.lock().unwrap();
-        if let Ok(raw) = hooks.channel_to_client_binary(msg.2) {
+        if let Ok(raw) = hooks.channel_to_client_binary(payload) {
             let bytes: &[u8] = &raw;
             let bytes = Bytes::copy_from_slice(bytes);
             ctx.binary(bytes);
@@ -209,8 +235,8 @@ async fn handle_client_text(
         hooks.client_to_channel_text(client_text).await
     };
     match result {
-        Ok(text) => {
-            let msg = channel::BroadcastText(channel_id, self_id, Arc::new(text));
+        Ok((text, dest)) => {
+            let msg = channel::BroadcastText(channel_id, self_id, Arc::new(text), dest);
             let _ = relay_addr.send(msg).await;
         }
         Err(err) => handle_error(err, self_addr).await,
@@ -232,8 +258,8 @@ async fn handle_client_binary(
         hooks.client_to_channel_binary(client_bin).await
     };
     match result {
-        Ok(bin) => {
-            let msg = channel::BroadcastBytes(channel_id, self_id, Arc::new(bin));
+        Ok((bin, dest)) => {
+            let msg = channel::BroadcastBytes(channel_id, self_id, Arc::new(bin), dest);
             let _ = relay_addr.send(msg).await;
         }
         Err(err) => handle_error(err, self_addr).await,
@@ -268,18 +294,18 @@ async fn handle_client_connect(
         hooks.on_connect_broadcast().await
     };
     // Handle any error from the hooks if there are any
-    let (to_channel_text, to_channel_bin) = match result {
+    let (to_channel_text, to_channel_bin, dest) = match result {
         Ok(to_channel) => to_channel,
         Err(err) => return handle_error(err, self_addr).await,
     };
     // if hook text to broadcast, send it to the relay
     if let Some(text) = to_channel_text {
-        let msg = channel::BroadcastText(channel_id, self_id, Arc::new(text));
+        let msg = channel::BroadcastText(channel_id, self_id, Arc::new(text), dest.clone());
         relay_addr.do_send(msg);
     }
     // if hook bin to broadcast, send it to the relay
     if let Some(bin) = to_channel_bin {
-        let msg = channel::BroadcastBytes(channel_id, self_id, Arc::new(bin));
+        let msg = channel::BroadcastBytes(channel_id, self_id, Arc::new(bin), dest.clone());
         relay_addr.do_send(msg);
     }
 }
@@ -289,12 +315,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ChannelSession {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Ping(msg)) => {
-                log::debug!("Ping: {:?}", msg);
+                log::trace!("Ping: {:?}", msg);
                 self.hb = Instant::now();
                 ctx.pong(&msg);
             }
             Ok(ws::Message::Pong(msg)) => {
-                log::debug!("Pong: {:?}", msg);
+                log::trace!("Pong: {:?}", msg);
                 self.hb = Instant::now();
             }
             Ok(ws::Message::Text(client_text)) => {
