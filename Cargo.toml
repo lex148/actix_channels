@@ -4,9 +4,12 @@ version = "0.1.1"
 authors = ["Lex Childs <lexchilds@gmail.com>"]
 edition = "2018"
 license = "BSD-3-Clause"
+description = "websocket channels for actix web"
+categories = [ "web-programming", "network-programming" ]
+keywords = [ "actix", "websocket", "channels" ]
+repository = "https://github.com/lex148/actix_channels"
 
 [lib]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
