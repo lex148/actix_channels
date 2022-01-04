@@ -324,6 +324,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ChannelSession {
                 self.hb = Instant::now();
             }
             Ok(ws::Message::Text(client_text)) => {
+                let client_text = client_text.to_string();
                 log::debug!(
                     "WS from:{}, to_channel: {}, text: {}",
                     self.id,

@@ -1,8 +1,8 @@
 [package]
 name = "actix_channels"
-version = "0.1.1"
+version = "0.4.0-beta.1"
 authors = ["Lex Childs <lexchilds@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "BSD-3-Clause"
 description = "websocket channels for actix web"
 categories = [ "web-programming", "network-programming" ]
@@ -13,11 +13,11 @@ repository = "https://github.com/lex148/actix_channels"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-web = "3"
-log = "0.4"
-actix-web-actors = "3"
+actix-web = "4.0.0-beta"
+log = "^0.4"
+actix-web-actors = "4.0.0-beta"
 actix-rt = "1"
-actix = "0.10"
-rand = "0.8"
-bytes = "0.5"
-async-trait="0.1"
+actix = "^0.12"
+rand = "^0.8"
+bytes = "^1"
+async-trait = "^0.1"
