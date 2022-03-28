@@ -1,6 +1,6 @@
 [package]
 name = "actix_channels"
-version = "0.4.0-beta.1"
+version = "0.4.1"
 authors = ["Lex Childs <lexchilds@gmail.com>"]
 edition = "2021"
 license = "BSD-3-Clause"
@@ -13,11 +13,11 @@ repository = "https://github.com/lex148/actix_channels"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-web = "4.0.0-beta"
+actix-web = "4.0.1"
 log = "^0.4"
-actix-web-actors = "4.0.0-beta"
+actix-web-actors = "4.0.1"
 actix-rt = "2.5"
-actix = "^0.12"
+actix = "^0.13"
 rand = "^0.8"
 bytes = "^1"
 async-trait = "^0.1"
