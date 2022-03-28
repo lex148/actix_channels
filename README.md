@@ -6,9 +6,9 @@ This crate is indented to be used in with actix-web
 ## How to use:
 
 You will need to include in your Cargo.toml
-- actix-web = "4.0.0-beta"
-- actix = "^0.12"
-- actix-web-actors = "4.0.0-beta"
+- actix-web = "4.0.1"
+- actix = "^0.13"
+- actix-web-actors = "4.0.1"
 - actix_channels
 
 
